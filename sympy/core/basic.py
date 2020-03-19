@@ -1817,10 +1817,86 @@ class Basic(metaclass=ManagedProperties):
                 else:
                     return self
 
+    _constructor_preprocessor_mapping = {}  # type: ignore
     _constructor_postprocessor_mapping = {}  # type: ignore
 
     @classmethod
+    def _exec_constructor_preprocessors(cls, *args, **options):
+        """
+        Select the constructor of argument with highest ``_op_priority``.
+
+        Explanation
+        ===========
+
+        This method is implemented to let ``Add``, ``Mul``, and ``Pow`` to behave as
+        the constructor for its subclasses.
+        When arguments and options are passed to constructor (e.g. ``Add(x, y)``),
+        they are passed to this method. Then, it compares ``_op_priority`` attribute
+        of the arguments. If any superclass of argument with highest ``_op_priority``
+        can be found in ``Basic._constructor_preprocessor_mapping``, its preprocessor
+        is used to return the object.
+        If ``preprocess=False`` option is passed, the arguments are not preprocessed.
+
+        Examples
+        ========
+
+        >>> from sympy import Add, MatrixSymbol, MatrixExpr
+        >>> A = MatrixSymbol('A', 2,2)
+        >>> isinstance(Add(A,A), MatrixExpr)
+        True
+        >>> isinstance(Add(A,A, preprocess=False), MatrixExpr)
+        False
+
+        See Also
+        ========
+
+        matrices.expressions.matexpr
+        """
+        skip = not options.get('preprocess', True)
+        if skip:
+            return None
+
+        preprocessors = []
+        for a in args:
+            if hasattr(a, '_op_priority'):
+                priority = a._op_priority
+                processor = None
+                for func in type(a).__mro__:
+                    if func in Basic._constructor_preprocessor_mapping:
+                        preprocessor_map = Basic._constructor_preprocessor_mapping[func]
+                        if cls in preprocessor_map:
+                            processor = preprocessor_map[cls]
+                            break
+                preprocessors.append((priority, processor))
+            else:
+                continue
+        if not preprocessors:
+            processor = None
+        else:
+            _, processor = max(preprocessors, key=lambda x:x[0])
+
+        if processor is None:
+            result = None
+        else:
+            result = processor(*args, **options)
+        return result
+
+    @classmethod
     def _exec_constructor_postprocessors(cls, obj):
+        """
+        Apply every postprocessors of ``obj.args`` to ``obj``.
+
+        Explanation
+        ===========
+
+        This method is implemented to let ``Add``, ``Mul``, and ``Pow`` to behave as
+        the constructor for its subclasses.
+        After an object (e.g. ``Add(x, y)``) is constructed, this method checks
+        every superclass of its every arguments. If any of the superclasses can be
+        found in ``Basic._constructor_postprocessor_mapping``, its postprocessors are
+        collected. When it is done for every arguments, every postprocessors are
+        applied to the object.
+        """
         # WARNING: This API is experimental.
 
         # This is an experimental API that introduces constructor
