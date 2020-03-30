@@ -1440,8 +1440,11 @@ class PrettyPrinter(Printer):
         if sort:
             args = sorted(args, key=default_sort_key)
 
-        if not func_name and hasattr(func, "__name__"):
-            func_name = func.__name__
+        if not func_name:
+            if hasattr(func, 'name'):
+                func_name = func.name
+            elif hasattr(func, '__name__'):
+                func_name = func.__name__
 
         if func_name:
             prettyFunc = self._print(Symbol(func_name))
@@ -1499,7 +1502,7 @@ class PrettyPrinter(Printer):
                     return prettyForm(self._special_function_classes[cls][0])
                 else:
                     return prettyForm(self._special_function_classes[cls][1])
-        func_name = expr.__name__
+        func_name = expr.name
         return prettyForm(pretty_symbol(func_name))
 
     def _print_GeometryEntity(self, expr):
