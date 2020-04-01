@@ -180,9 +180,6 @@ class FunctionClass(ManagedProperties):
             nargs = (as_int(nargs),)
         cls._nargs = nargs
 
-        name = kwargs.pop('name', cls.__dict__.get('name', cls.__name__))
-        cls.name = name
-
         super(FunctionClass, cls).__init__(*args, **kwargs)
 
     @property
@@ -253,7 +250,7 @@ class FunctionClass(ManagedProperties):
         return FiniteSet(*self._nargs) if self._nargs else S.Naturals0
 
     def __repr__(cls):
-        return cls.name
+        return cls.__name__
 
 
 class Application(Basic, metaclass=FunctionClass):
