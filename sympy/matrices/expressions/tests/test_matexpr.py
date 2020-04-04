@@ -539,7 +539,7 @@ def test_generic_identity():
     # Make sure it is hashable
     hash(I)
 
-def test_MatMul_postprocessor():
+def test_MatMul_preprocessor():
     z = zeros(2)
     z1 = ZeroMatrix(2, 2)
     assert Mul(0, z) == Mul(z, 0) in [z, z1]
@@ -567,14 +567,11 @@ def test_MatMul_postprocessor():
 
     assert Mul(A, x, M, M, x) == MatMul(A, Mx**2)
 
-@XFAIL
-def test_MatAdd_postprocessor_xfail():
-    # This is difficult to get working because of the way that Add processes
-    # its args.
-    z = zeros(2)
-    assert Add(z, S.NaN) == Add(S.NaN, z)
+    B = MatrixSymbol("B", 3,3)
+    with raises(ShapeError):
+        Mul(A,B, check=True)
 
-def test_MatAdd_postprocessor():
+def test_MatAdd_preprocessor():
     # Some of these are nonsensical, but we do not raise errors for Add
     # because that breaks algorithms that want to replace matrices with dummy
     # symbols.
@@ -594,8 +591,8 @@ def test_MatAdd_postprocessor():
     assert a.args == (S.ComplexInfinity, z)
 
     a = Add(z, S.NaN)
-    # assert a == Add(S.NaN, z) # See the XFAIL above
-    assert isinstance(a, Add)
+    assert a == Add(S.NaN, z)
+    assert a.func == Add
     assert a.args == (S.NaN, z)
 
     M = Matrix([[1, 2], [3, 4]])
@@ -619,6 +616,10 @@ def test_MatAdd_postprocessor():
     a = Add(A, x, M, M, x)
     assert isinstance(a, Add)
     assert a.args == (2*x, A + 2*M)
+
+    B = MatrixSymbol("B", 3,3)
+    with raises(ShapeError):
+        Add(A,B, check=True)
 
 def test_simplify_matrix_expressions():
     # Various simplification functions

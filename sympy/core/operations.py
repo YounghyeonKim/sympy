@@ -31,6 +31,11 @@ class AssocOp(Basic):
     def __new__(cls, *args, **options):
         from sympy import Order
         args = list(map(_sympify, args))
+
+        obj = cls._exec_constructor_preprocessors(*args, **options)
+        if obj is not None:
+            return obj
+
         args = [a for a in args if a is not cls.identity]
 
         # XXX: Maybe only Expr should be allowed here...
@@ -302,6 +307,9 @@ class AssocOp(Basic):
             return False
         return is_in
 
+    def _eval_doit(self, *args, **hints):
+        return self._eval_doit_evaluatable(*args, **hints)
+
     def _eval_evalf(self, prec):
         """
         Evaluate the parts of self that are numbers; if the whole thing
@@ -375,16 +383,8 @@ class AssocOp(Basic):
         else:
             return (sympify(expr),)
 
-    def doit(self, **hints):
-        if hints.get('deep', True):
-            terms = [term.doit(**hints) for term in self.args]
-        else:
-            terms = self.args
-        return self.func(*terms, evaluate=True)
-
 class ShortCircuit(Exception):
     pass
-
 
 class LatticeOp(AssocOp):
     """
