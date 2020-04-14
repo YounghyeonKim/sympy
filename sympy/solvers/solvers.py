@@ -41,6 +41,7 @@ from sympy.simplify import (simplify, collect, powsimp, posify,  # type: ignore
     separatevars)
 from sympy.simplify.sqrtdenest import sqrt_depth
 from sympy.simplify.fu import TR1
+from sympy.matrices.common import NonInvertibleMatrixError
 from sympy.matrices import Matrix, zeros
 from sympy.polys import roots, cancel, factor, Poly, degree
 from sympy.polys.polyerrors import GeneratorsNeeded, PolynomialError
@@ -262,9 +263,9 @@ def checksol(f, symbol, sol=None, **flags):
         if f.rhs in (S.true, S.false):
             f = f.reversed
         B, E = f.args
-        if B in (S.true, S.false):
+        if isinstance(B, BooleanAtom):
             f = f.subs(sol)
-            if f not in (S.true, S.false):
+            if not f.is_Boolean:
                 return
         else:
             f = f.rewrite(Add, evaluate=False)
@@ -364,8 +365,6 @@ def checksol(f, symbol, sol=None, **flags):
         elif val.is_Rational:
             return val == 0
         if numerical and val.is_number:
-            if val in (S.true, S.false):
-                return bool(val)
             return (abs(val.n(18).n(12, chop=True)) < 1e-9) is S.true
         was = val
 
@@ -977,11 +976,10 @@ def solve(f, *symbols, **flags):
             if 'ImmutableDenseMatrix' in [type(a).__name__ for a in fi.args]:
                 fi = fi.lhs - fi.rhs
             else:
-                args = fi.args
-                if args[1] in (S.true, S.false):
-                    args = args[1], args[0]
-                L, R = args
-                if L in (S.false, S.true):
+                L, R = fi.args
+                if isinstance(R, BooleanAtom):
+                    L, R = R, L
+                if isinstance(L, BooleanAtom):
                     if isinstance(fi, Unequality):
                         L = ~L
                     if R.is_Relational:
@@ -2645,7 +2643,7 @@ def inv_quick(M):
     n = M.rows
     d = det(M)
     if d == S.Zero:
-        raise ValueError("Matrix det == 0; not invertible.")
+        raise NonInvertibleMatrixError("Matrix det == 0; not invertible")
     ret = zeros(n)
     s1 = -1
     for i in range(n):
