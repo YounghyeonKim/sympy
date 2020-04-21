@@ -15,6 +15,7 @@ from sympy.functions.special.tensor_functions import KroneckerDelta
 from sympy.matrices.common import NonSquareMatrixError, NonInvertibleMatrixError
 from sympy.simplify import simplify
 from sympy.utilities.misc import filldedent
+from sympy.assumptions.ask import ask, Q
 
 
 def _sympifyit(arg, retval=None):
@@ -128,15 +129,7 @@ class MatrixExpr(Expr):
     @_sympifyit('other', NotImplemented)
     @call_highest_priority('__rpow__')
     def __pow__(self, other):
-        if not self.is_square:
-            raise NonSquareMatrixError("Power of non-square matrix %s" % self)
-        elif self.is_Identity:
-            return self
-        elif other == S.Zero:
-            return Identity(self.rows)
-        elif other == S.One:
-            return self
-        return MatPow(self, other).doit(deep=False)
+        return MatPow(self, other).doit()
 
     @_sympifyit('other', NotImplemented)
     @call_highest_priority('__pow__')
@@ -188,6 +181,10 @@ class MatrixExpr(Expr):
         return Transpose(self)
 
     def _eval_power(self, exp):
+        """
+        Override this in sub-classes to implement simplification of powers.  The cases where the exponent
+        is -1, 0, 1 are already covered in MatPow.doit(), so implementations can exclude these cases.
+        """
         return MatPow(self, exp)
 
     def _eval_simplify(self, **kwargs):
@@ -233,7 +230,7 @@ class MatrixExpr(Expr):
     @classmethod
     def _check_dim(cls, dim):
         """Helper function to check invalid matrix dimensions"""
-        from sympy.solvers.solvers import check_assumptions
+        from sympy.core.assumptions import check_assumptions
         ok = check_assumptions(dim, integer=True, nonnegative=True)
         if ok is False:
             raise ValueError(
@@ -343,8 +340,13 @@ class MatrixExpr(Expr):
         as_mutable: returns mutable Matrix type
 
         """
+        if (not isinstance(self.rows, (SYMPY_INTS, Integer))
+            or not isinstance(self.cols, (SYMPY_INTS, Integer))):
+            raise ValueError(
+                'Matrix with symbolic shape '
+                'cannot be represented explicitly.')
         from sympy.matrices.immutable import ImmutableDenseMatrix
-        return ImmutableDenseMatrix([[    self[i, j]
+        return ImmutableDenseMatrix([[self[i, j]
                             for j in range(self.cols)]
                             for i in range(self.rows)])
 
@@ -911,6 +913,9 @@ class Identity(MatrixExpr):
     def _eval_determinant(self):
         return S.One
 
+    def _eval_power(self, exp):
+        return self
+
 
 class GenericIdentity(Identity):
     """
@@ -974,14 +979,9 @@ class ZeroMatrix(MatrixExpr):
     def shape(self):
         return (self.args[0], self.args[1])
 
-    @_sympifyit('other', NotImplemented)
-    @call_highest_priority('__rpow__')
-    def __pow__(self, other):
-        if other != 1 and not self.is_square:
-            raise NonSquareMatrixError("Power of non-square matrix %s" % self)
-        if other == 0:
-            return Identity(self.rows)
-        if other < 1:
+    def _eval_power(self, exp):
+        # exp = -1, 0, 1 are already handled at this stage
+        if (exp < 0) == True:
             raise NonInvertibleMatrixError("Matrix det == 0; not invertible")
         return self
 
@@ -1059,6 +1059,10 @@ class OneMatrix(MatrixExpr):
     def shape(self):
         return self._args
 
+    @property
+    def is_Identity(self):
+        return self._is_1x1() == True
+
     def as_explicit(self):
         from sympy import ImmutableDenseMatrix
         return ImmutableDenseMatrix.ones(*self.shape)
@@ -1068,6 +1072,16 @@ class OneMatrix(MatrixExpr):
         if hints.get('deep', True):
             args = [a.doit(**hints) for a in args]
         return self.func(*args, evaluate=True)
+
+    def _eval_power(self, exp):
+        # exp = -1, 0, 1 are already handled at this stage
+        if self._is_1x1() == True:
+            return Identity(1)
+        if (exp < 0) == True:
+            raise NonInvertibleMatrixError("Matrix det == 0; not invertible")
+        if ask(Q.integer(exp)):
+            return self.shape[0] ** (exp - 1) * OneMatrix(*self.shape)
+        return super(OneMatrix, self)._eval_power(exp)
 
     def _eval_transpose(self):
         return OneMatrix(self.cols, self.rows)
