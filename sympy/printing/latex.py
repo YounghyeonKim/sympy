@@ -1588,27 +1588,27 @@ class LatexPrinter(Printer):
             out_str = r'\left' + left_delim + out_str + \
                       r'\right' + right_delim
         return out_str % r"\\".join(lines)
-    _print_ImmutableMatrix = _print_ImmutableDenseMatrix \
-                           = _print_Matrix \
-                           = _print_MatrixBase
+
+    _print_ImmutableDenseMatrix = _print_MatrixBase
+    _print_ImmutableSparseMatrix = _print_MatrixBase
 
     def _print_MatrixElement(self, expr):
         return self.parenthesize(expr.parent, PRECEDENCE["Atom"], strict=True)\
             + '_{%s, %s}' % (self._print(expr.i), self._print(expr.j))
 
     def _print_MatrixSlice(self, expr):
-        def latexslice(x):
+        def latexslice(x, dim):
             x = list(x)
             if x[2] == 1:
                 del x[2]
-            if x[1] == x[0] + 1:
-                del x[1]
             if x[0] == 0:
                 x[0] = ''
+            if x[1] == dim:
+                x[1] = ''
             return ':'.join(map(self._print, x))
-        return (self._print(expr.parent) + r'\left[' +
-                latexslice(expr.rowslice) + ', ' +
-                latexslice(expr.colslice) + r'\right]')
+        return (self.parenthesize(expr.parent, PRECEDENCE["Atom"], strict=True) + r'\left[' +
+                latexslice(expr.rowslice, expr.parent.rows) + ', ' +
+                latexslice(expr.colslice, expr.parent.cols) + r'\right]')
 
     def _print_BlockMatrix(self, expr):
         return self._print(expr.blocks)
