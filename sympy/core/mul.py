@@ -946,6 +946,7 @@ class Mul(Expr, AssocOp):
 
     def matches(self, expr, repl_dict={}, old=False):
         expr = sympify(expr)
+        repl_dict = repl_dict.copy()
         if self.is_commutative and expr.is_commutative:
             return self._matches_commutative(expr, repl_dict, old)
         elif self.is_commutative is not expr.is_commutative:
@@ -994,6 +995,7 @@ class Mul(Expr, AssocOp):
         expression, while `targets` is a list of arguments in the
         multiplication expression being matched against.
         """
+        repl_dict = repl_dict.copy()
         # List of possible future states to be considered
         agenda = []
         # The current matching state, storing index in nodes and targets
@@ -1179,6 +1181,10 @@ class Mul(Expr, AssocOp):
 
     def _eval_is_rational_function(self, syms):
         return all(term._eval_is_rational_function(syms) for term in self.args)
+
+    def _eval_is_meromorphic(self, x, a):
+        return _fuzzy_group((arg.is_meromorphic(x, a) for arg in self.args),
+                            quick_exit=True)
 
     def _eval_is_algebraic_expr(self, syms):
         return all(term._eval_is_algebraic_expr(syms) for term in self.args)
